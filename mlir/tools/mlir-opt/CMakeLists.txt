@@ -1,5 +1,6 @@
 set(LLVM_OPTIONAL_SOURCES
   null.cpp
+  pass-registering-extension-considered-harmful.cpp
 )
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
@@ -91,3 +92,17 @@ llvm_update_compile_flags(mlir-opt)
 
 mlir_check_all_link_libraries(mlir-opt)
 export_executable_symbols_for_plugins(mlir-opt)
+
+
+add_mlir_tool(pass-registering-extension-considered-harmful
+  pass-registering-extension-considered-harmful.cpp
+
+  DEPENDS
+  ${LIBS}
+  SUPPORT_PLUGINS
+  )
+target_link_libraries(pass-registering-extension-considered-harmful PRIVATE ${LIBS})
+llvm_update_compile_flags(pass-registering-extension-considered-harmful)
+
+mlir_check_all_link_libraries(pass-registering-extension-considered-harmful)
+export_executable_symbols_for_plugins(pass-registering-extension-considered-harmful)

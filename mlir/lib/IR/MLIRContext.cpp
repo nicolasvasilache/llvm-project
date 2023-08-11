@@ -392,6 +392,8 @@ void MLIRContext::appendDialectRegistry(const DialectRegistry &registry) {
   if (registry.isSubsetOf(impl->dialectsRegistry))
     return;
 
+  llvm::errs() << "I will crash on you if not 0: "
+               << impl->multiThreadedExecutionContext << "\n";
   assert(impl->multiThreadedExecutionContext == 0 &&
          "appending to the MLIRContext dialect registry while in a "
          "multi-threaded execution context");
