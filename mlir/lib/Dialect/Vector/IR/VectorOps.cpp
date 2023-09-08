@@ -31,6 +31,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -253,6 +254,19 @@ struct BitmaskEnumStorage : public AttributeStorage {
 // VectorDialect
 //===----------------------------------------------------------------------===//
 
+namespace {
+/// This class defines the interface for handling inlining with vector dialect
+/// operations.
+struct VectorInlinerInterface : public DialectInlinerInterface {
+  using DialectInlinerInterface::DialectInlinerInterface;
+
+  /// All vector dialect ops can be inlined.
+  bool isLegalToInline(Operation *, Region *, bool, IRMapping &) const final {
+    return true;
+  }
+};
+} // namespace
+
 void VectorDialect::initialize() {
   addAttributes<
 #define GET_ATTRDEF_LIST
@@ -263,6 +277,7 @@ void VectorDialect::initialize() {
 #define GET_OP_LIST
 #include "mlir/Dialect/Vector/IR/VectorOps.cpp.inc"
       >();
+  addInterfaces<VectorInlinerInterface>();
 }
 
 /// Materialize a single constant operation from a given attribute value with

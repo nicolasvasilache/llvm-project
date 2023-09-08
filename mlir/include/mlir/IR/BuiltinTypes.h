@@ -421,10 +421,11 @@ inline bool BaseMemRefType::classof(Type type) {
 }
 
 inline bool BaseMemRefType::isValidElementType(Type type) {
-  return type.isIntOrIndexOrFloat() ||
-         llvm::isa<ComplexType, MemRefType, VectorType, UnrankedMemRefType>(
-             type) ||
-         llvm::isa<MemRefElementTypeInterface>(type);
+  // return type.isIntOrIndexOrFloat() ||
+  //        llvm::isa<ComplexType, MemRefType, VectorType, UnrankedMemRefType>(
+  //            type) ||
+  //        llvm::isa<MemRefElementTypeInterface>(type);
+  return true;
 }
 
 inline bool FloatType::classof(Type type) {
