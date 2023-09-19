@@ -150,6 +150,14 @@ static DiagnosedSilenceableFailure unpackSingleIndexResultPayloadOperations(
 // Apply...PatternsOp
 //===----------------------------------------------------------------------===//
 
+void transform::ApplyBubbleUpExtractSlicePatternsOp::populatePatterns(
+    RewritePatternSet &patterns) {
+  linalg::populateBubbleUpExtractSliceOpPatterns(patterns);
+  std::function<std::optional<bool>(tensor::ExtractSliceOp)> controlFn =
+      [](tensor::ExtractSliceOp) -> std::optional<bool> { return false; };
+  patterns.add<ExtractSliceOfPadTensorSwapPattern>(getContext(), controlFn);
+}
+
 void transform::ApplyEraseUnnecessaryInputsPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   linalg::populateEraseUnnecessaryInputsPatterns(patterns);
@@ -900,6 +908,10 @@ transform::FuseIntoContainingOp::apply(transform::TransformRewriter &rewriter,
   SetVector<Operation *> remainingProducers(producerOps.begin(),
                                             producerOps.end());
   auto getNextProducer = [&]() -> FailureOr<Operation *> {
+    LDBG("Call getNextProducer with remaining producers:");
+    LLVM_DEBUG(
+        llvm::interleaveComma(remainingProducers, DBGS(),
+                              [&](Operation *op) { DBGS() << *op << "\n"; }));
     for (const auto &it : enumerate(remainingProducers)) {
       Operation *producerOp = it.value();
       // The containing op may be a user of producerOp: use isAncestor.
@@ -923,7 +935,7 @@ transform::FuseIntoContainingOp::apply(transform::TransformRewriter &rewriter,
     auto nextProducer = getNextProducer();
     if (failed(nextProducer)) {
       auto diag = mlir::emitSilenceableFailure(getLoc())
-             << "could not find next producer to fuse into container";
+                  << "could not find next producer to fuse into container";
       diag.attachNote(containingOp->getLoc()) << "containing op";
       return diag;
     }

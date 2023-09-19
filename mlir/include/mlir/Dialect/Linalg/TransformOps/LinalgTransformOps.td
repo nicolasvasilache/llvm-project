@@ -30,6 +30,16 @@ def TransformParamTypeOrAnyHandle : Type<
 // Apply...PatternsOp
 //===----------------------------------------------------------------------===//
 
+def ApplyBubbleUpExtractSlicePatternsOp : Op<Transform_Dialect,
+    "apply_patterns.linalg.bubble_up_extract_slice",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Collects patterns that swap extract_slice(linalg) into linalg(extract_slice).
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
 def ApplyEraseUnnecessaryInputsPatternsOp : Op<Transform_Dialect,
     "apply_patterns.linalg.erase_unnecessary_inputs",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
