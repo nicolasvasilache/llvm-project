@@ -274,6 +274,35 @@ def ForOp : SCF_Op<"for",
 
     /// Interface method for ConditionallySpeculatable.
     Speculation::Speculatability getSpeculatability();
+
+    /// Return the op result that is tied to the given operand.
+    OpResult getTiedOpResult(OpOperand *opOperand) {
+      assert(opOperand->getOperandNumber() >= getNumControlOperands() &&
+             "invalid operand");
+      return getOperation()->getOpResult(
+          opOperand->getOperandNumber() - getNumControlOperands());
+    }
+
+    /// Return the operand that is tied to the given block argument.
+    OpOperand *getTiedOpOperand(BlockArgument bbArg) {
+      assert(bbArg.getArgNumber() >= getNumInductionVars() && "invalid bbArg");
+      return &getOperation()->getOpOperand(getNumControlOperands() +
+                                           bbArg.getArgNumber() - getNumInductionVars());
+    }
+
+    /// Return the operand that is tied to the given OpResult.
+    OpOperand *getTiedOpOperand(OpResult opResult) {
+      assert(opResult.getDefiningOp() == getOperation() && "invalid OpResult");
+      return &getOperation()->getOpOperand(getNumControlOperands() +
+                                           opResult.getResultNumber());
+    }
+
+    BlockArgument getTiedBlockArgument(OpOperand *opOperand) {
+      assert(opOperand->getOperandNumber() >= getNumControlOperands() &&
+             "invalid operand");
+      return getBody()->getArgument(opOperand->getOperandNumber() -
+                                    getNumControlOperands() + getNumInductionVars());
+    }
   }];
 
   let hasCanonicalizer = 1;

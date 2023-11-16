@@ -44,6 +44,7 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
+#include <algorithm>
 #include <type_traits>
 
 using namespace mlir;
@@ -637,7 +638,7 @@ static Operation *replaceForAllWithNewSignature(
 static std::tuple<SmallVector<Operation *>, Operation *>
 tileAndFuseFirstExtractUse(RewriterBase &rewriter, Diagnostic &diag,
                            Operation *producerOp, Operation *containingOp) {
-  LLVM_DEBUG(DBGS() << "Try to fuse a direct extract use\n");
+  LDBG("Try to fuse a direct extract use");
   auto tileableProducer = dyn_cast<TilingInterface>(producerOp);
   if (!tileableProducer) {
     diag.attachNote(producerOp->getLoc())
@@ -668,7 +669,7 @@ tileAndFuseFirstExtractUse(RewriterBase &rewriter, Diagnostic &diag,
   // Tile the producer.
   int64_t resultNumber =
       cast<OpResult>(sliceOpToTile.getSource()).getResultNumber();
-  LLVM_DEBUG(DBGS() << "resultNumber: " << resultNumber << "\n");
+  LDBG("resultNumber: " << resultNumber);
 
   SmallVector<OpFoldResult> offsets = sliceOpToTile.getMixedOffsets();
   SmallVector<OpFoldResult> sizes = sliceOpToTile.getMixedSizes();
@@ -685,7 +686,7 @@ tileAndFuseFirstExtractUse(RewriterBase &rewriter, Diagnostic &diag,
 
 #ifndef NDEBUG
   for (auto tiledOp : tileAndFuseResult->tiledOps) {
-    LLVM_DEBUG(DBGS() << "tiledProducer: " << *tiledOp << "\n");
+    LDBG("tiledProducer: " << *tiledOp);
   }
 #endif
 
@@ -720,7 +721,7 @@ static SmallVector<Operation *>
 tileAndFuseFirstExtractUseThroughContainingOpBlockArgument(
     RewriterBase &rewriter, Diagnostic &diag, Operation *producerOp,
     Operation *containingOp) {
-  LLVM_DEBUG(DBGS() << "Try to fuse an extract use through block argument\n");
+  LDBG("Try to fuse an extract use through block argument");
 
   auto tileableProducer = dyn_cast<TilingInterface>(producerOp);
   if (!tileableProducer) {
@@ -729,26 +730,32 @@ tileAndFuseFirstExtractUseThroughContainingOpBlockArgument(
     return {};
   }
 
-  // Search the first use by a "scf::ForallOp" user.
-  scf::ForallOp forallOp;
-  auto itProducerUses =
-      llvm::find_if(tileableProducer->getUses(), [&](OpOperand &use) {
-        forallOp = dyn_cast<scf::ForallOp>(use.getOwner());
-        return forallOp;
+  OpOperand *pUse;
+  int numUsesByContainingOp =
+      llvm::count_if(containingOp->getOpOperands(), [&](OpOperand &operand) {
+        if (operand.get().getDefiningOp() != producerOp)
+          return false;
+        pUse = &operand;
+        return true;
       });
-  // If it's not from the containing op, return.
-  if (!forallOp || forallOp != containingOp) {
+  if (numUsesByContainingOp != 1) {
     diag.attachNote(tileableProducer->getLoc())
         << "could not find a use by the containing op: " << *tileableProducer;
     return {};
   }
 
-  // Search the producer slices accessed within the containing
-  // operation.
+  // Search the producer slices accessed within the containing operation.
   // TODO: Generalize to more extract/insert/parallel_insert triples.
   //   Maybe evolve into an interface.
-  OpOperand *pUse = &(*itProducerUses);
-  BlockArgument bbArg = forallOp.getTiedBlockArgument(pUse);
+  auto bbArg = llvm::TypeSwitch<Operation *, BlockArgument>(containingOp)
+                   .Case<scf::ForOp, scf::ForallOp>(
+                       [&](auto op) { return op.getTiedBlockArgument(pUse); })
+                   .Default([](Operation *) { return BlockArgument(); });
+  if (!bbArg) {
+    diag.attachNote(tileableProducer->getLoc()) << "no bbArg of the proper containing op";
+    return {};
+  }
+  LDBG("found bbArg: " << bbArg << " of " << *bbArg.getOwner()->getParentOp());
 
   // Search the producer slices accessed within the containing operation.
   // TODO: Generalize to more extract/insert/parallel_insert triples, maybe
@@ -764,6 +771,7 @@ tileAndFuseFirstExtractUseThroughContainingOpBlockArgument(
         << "could not find fusion opportunity for bbArg: " << bbArg;
     return {};
   }
+  LDBG("found itBBArgUsers: " << **itBBArgUsers);
   auto sliceOpToTile = cast<tensor::ExtractSliceOp>(*itBBArgUsers);
 
   // Try to fuse the producer in-place.
@@ -773,7 +781,7 @@ tileAndFuseFirstExtractUseThroughContainingOpBlockArgument(
   // Replace the use in the tileableProducer before tiling: clone, replace and
   // then tile.
   int64_t resultNumber = cast<OpResult>(pUse->get()).getResultNumber();
-  LLVM_DEBUG(DBGS() << "resultNumber: " << resultNumber << "\n");
+  LDBG("resultNumber: " << resultNumber);
 
   // Gather destination tensors.
   SmallVector<Value> destinationTensors;
@@ -822,7 +830,7 @@ tileAndFuseFirstExtractUseThroughContainingOpBlockArgument(
 static Operation *cloneAndFuseFirstUse(RewriterBase &rewriter, Diagnostic &diag,
                                        Operation *producerOp,
                                        Operation *containingOp) {
-  LLVM_DEBUG(DBGS() << "Try to fuse an use by cloning\n");
+  LDBG("Try to fuse an use by cloning");
 
   // Gather all uses inside the containing op.
   SmallVector<OpOperand *> uses;
@@ -856,7 +864,7 @@ static Operation *cloneAndFuseFirstUse(RewriterBase &rewriter, Diagnostic &diag,
   assert(!isa<tensor::ParallelInsertSliceOp>(use->getOwner()) &&
          "Parallel insert slice is not a valid clone destination");
   unsigned resultNumber = cast<OpResult>(use->get()).getResultNumber();
-  LLVM_DEBUG(DBGS() << "resultNumber: " << resultNumber << "\n");
+  LDBG("resultNumber: " << resultNumber);
 
   OpBuilder::InsertionGuard guard(rewriter);
   rewriter.setInsertionPoint(use->getOwner());
@@ -927,6 +935,8 @@ transform::FuseIntoContainingOp::apply(transform::TransformRewriter &rewriter,
     }
 
     Operation *producerOp = *nextProducer;
+    LDBG("Try to fuse: " << *producerOp);
+    LDBG("into: " << *containingOp);
 
     // Default diagnostic, to be complemented with more failure information.
     Diagnostic diag(producerOp->getLoc(), DiagnosticSeverity::Remark);
@@ -940,7 +950,7 @@ transform::FuseIntoContainingOp::apply(transform::TransformRewriter &rewriter,
     auto [tiledOps, newContainingOp] =
         tileAndFuseFirstExtractUse(rewriter, diag, producerOp, containingOp);
     if (!tiledOps.empty()) {
-      LLVM_DEBUG(DBGS() << "\nFused a direct extract use\n" << *containingOp);
+      LDBG("Fused a direct extract use: " << *containingOp);
       fusedOps.append(tiledOps);
       if (newContainingOp) {
         // Update handles associated with the containing op so we don't need to
@@ -966,8 +976,7 @@ transform::FuseIntoContainingOp::apply(transform::TransformRewriter &rewriter,
         tileAndFuseFirstExtractUseThroughContainingOpBlockArgument(
             rewriter, diag, producerOp, containingOp);
     if (!tiledContainingOpOperand.empty()) {
-      LLVM_DEBUG(DBGS() << "\nFused an extract use through block argument\n"
-                        << *containingOp);
+      LDBG("Fused an extract use through block argument: " << *containingOp);
       fusedOps.append(tiledContainingOpOperand);
       continue;
     }
@@ -975,10 +984,12 @@ transform::FuseIntoContainingOp::apply(transform::TransformRewriter &rewriter,
     Operation *cloned =
         cloneAndFuseFirstUse(rewriter, diag, producerOp, containingOp);
     if (cloned) {
-      LLVM_DEBUG(DBGS() << "\nFused an use by cloning\n" << *containingOp);
+      LDBG("Fused an use by cloning: " << *containingOp);
       fusedOps.push_back(cloned);
       continue;
     }
+
+    diag.print(llvm::dbgs());
     return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
   }
 
