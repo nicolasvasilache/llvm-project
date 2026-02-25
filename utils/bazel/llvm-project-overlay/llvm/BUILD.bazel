@@ -6397,6 +6397,23 @@ cc_library(
     ],
 )
 
+write_file(
+    name = "lit_wrapper",
+    out = "lit_wrapper.sh",
+    content = [
+        "#!/bin/bash",
+        'exec python3 "$(dirname "$0")/utils/lit/lit.py" "$@"',
+    ],
+    is_executable = True,
+)
+
+sh_binary(
+    name = "lit",
+    testonly = True,
+    srcs = ["lit_wrapper.sh"],
+    data = ["utils/lit/lit.py"] + glob(["utils/lit/lit/**/*.py"]),
+)
+
 cc_library(
     name = "TestingADT",
     testonly = True,
