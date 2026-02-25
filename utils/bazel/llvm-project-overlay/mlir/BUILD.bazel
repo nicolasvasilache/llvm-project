@@ -1130,7 +1130,6 @@ cc_library(
         ":CAPIIRHeaders",
         ":CAPITransformsHeaders",
         "@pybind11",
-        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
@@ -1145,7 +1144,6 @@ cc_library(
         ":CAPIIR",
         ":CAPITransforms",
         "@pybind11",
-        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
@@ -1160,7 +1158,6 @@ cc_library(
         ":CAPIIRHeaders",
         ":CAPITransformsHeaders",
         "@nanobind",
-        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
@@ -1175,7 +1172,6 @@ cc_library(
         ":CAPIIR",
         ":CAPITransforms",
         "@nanobind",
-        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
@@ -1231,7 +1227,6 @@ cc_library(
         ":config",
         "//llvm:Support",
         "@nanobind",
-        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
@@ -1254,7 +1249,6 @@ cc_library(
         ":config",
         "//llvm:Support",
         "@nanobind",
-        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
@@ -1386,7 +1380,6 @@ cc_binary(
         ":CAPIExecutionEngine",
         ":MLIRBindingsPythonNanobindHeadersAndDeps",
         "@nanobind",
-        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
@@ -1402,7 +1395,6 @@ cc_binary(
         ":CAPILinalg",
         ":MLIRBindingsPythonNanobindHeadersAndDeps",
         "@nanobind",
-        "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
