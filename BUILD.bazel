@@ -1,3 +1,0 @@
-# Marker file for Bazel repository root.
-# This file is needed when using --override_repository to point at this checkout.
-exports_files(["WORKSPACE"])
