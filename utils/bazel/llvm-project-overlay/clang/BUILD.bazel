@@ -2,8 +2,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
-load("@rules_python//python:defs.bzl", "py_binary")
 load(
     "//:vars.bzl",
     "LLVM_VERSION_MAJOR",
@@ -585,23 +586,18 @@ exports_files(
     glob(["include/**/*.td"]),
 )
 
-genrule(
+write_file(
     name = "basic_version_gen",
-    outs = ["include/clang/Basic/Version.inc"],
-    cmd = (
-        "echo '#define CLANG_VERSION {vers}' >> $@\n" +
-        "echo '#define CLANG_VERSION_MAJOR {major}' >> $@\n" +
-        "echo '#define CLANG_VERSION_MAJOR_STRING \"{major}\"' >> $@\n" +
-        "echo '#define CLANG_VERSION_MINOR {minor}' >> $@\n" +
-        "echo '#define CLANG_VERSION_PATCHLEVEL {patch}' >> $@\n" +
-        "echo '#define MAX_CLANG_ABI_COMPAT_VERSION {major}' >> $@\n" +
-        "echo '#define CLANG_VERSION_STRING \"{vers}\"' >> $@\n"
-    ).format(
-        major = LLVM_VERSION_MAJOR,
-        minor = LLVM_VERSION_MINOR,
-        patch = LLVM_VERSION_PATCH,
-        vers = PACKAGE_VERSION,
-    ),
+    out = "include/clang/Basic/Version.inc",
+    content = [
+        "#define CLANG_VERSION {}".format(PACKAGE_VERSION),
+        "#define CLANG_VERSION_MAJOR {}".format(LLVM_VERSION_MAJOR),
+        "#define CLANG_VERSION_MAJOR_STRING \"{}\"".format(LLVM_VERSION_MAJOR),
+        "#define CLANG_VERSION_MINOR {}".format(LLVM_VERSION_MINOR),
+        "#define CLANG_VERSION_PATCHLEVEL {}".format(LLVM_VERSION_PATCH),
+        "#define MAX_CLANG_ABI_COMPAT_VERSION {}".format(LLVM_VERSION_MAJOR),
+        "#define CLANG_VERSION_STRING \"{}\"".format(PACKAGE_VERSION),
+    ],
 )
 
 cc_library(
@@ -619,21 +615,15 @@ cc_library(
 
 # TODO: This should get replaced with something that actually generates the
 # correct version number.
-genrule(
+write_file(
     name = "vcs_version_gen",
     # This should be under lib/Basic, but because of how the include paths
     # are passed through bazel, it's easier to drop generated files next to
     # the other includes.
-    outs = ["include/VCSVersion.inc"],
-    cmd = "echo '#undef CLANG_REVISION' > $@",
-)
-
-py_binary(
-    name = "bundle_resources",
-    srcs = [
-        "utils/bundle_resources.py",
+    out = "include/VCSVersion.inc",
+    content = [
+        "#undef CLANG_REVISION",
     ],
-    main = "utils/bundle_resources.py",
 )
 
 cc_library(
@@ -988,16 +978,86 @@ cc_library(
     ],
 )
 
-genrule(
+write_file(
+    name = "write_bundle_resources_cc",
+    out = "bundle_resources.cc",
+    content = ["""
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <string>
+
+namespace fs = std::filesystem;
+
+// Turn "path/to/a.js" into "a_js"
+static std::string make_varname(const std::string &path) {
+    std::string base = fs::path(path).filename().string();
+    for (char &ch : base) {
+        if (ch == '.')
+            ch = '_';
+    }
+    return base;
+}
+
+int main(int argc, char **argv) {
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " OUTFILE INFILES...\\n";
+        return 1;
+    }
+
+    const char *outfile = argv[1];
+    std::ofstream out(outfile);
+    if (!out) {
+        std::cerr << "Error: cannot open output file '" << outfile << "'\\n";
+        return 1;
+    }
+
+    // For each input file
+    for (int i = 2; i < argc; ++i) {
+        const std::string filename = argv[i];
+        std::ifstream in(filename);
+        if (!in) {
+            std::cerr << "Error: cannot open input file '" << filename << "'\\n";
+            return 1;
+        }
+
+        const std::string varname = make_varname(filename);
+        out << "const char " << varname << "[] = \\n";
+
+        std::string line;
+        while (std::getline(in, line)) {
+            // Emit:   R"x(<line>)x" "\\n"
+            out << "  R\\"x(" << line << ")x\\" \\"\\\\n\\"\\n";
+        }
+
+        out << "  ;\\n";
+    }
+
+    return 0;
+}
+"""],
+)
+
+cc_binary(
+    name = "bundle_resources_cc",
+    srcs = ["bundle_resources.cc"],
+)
+
+run_binary(
     name = "analysis_htmllogger_gen",
     srcs = [
-        "lib/Analysis/FlowSensitive/HTMLLogger.html",
         "lib/Analysis/FlowSensitive/HTMLLogger.css",
+        "lib/Analysis/FlowSensitive/HTMLLogger.html",
         "lib/Analysis/FlowSensitive/HTMLLogger.js",
     ],
     outs = ["lib/Analysis/FlowSensitive/HTMLLogger.inc"],
-    cmd = "$(location :bundle_resources) $@ $(SRCS)",
-    tools = [":bundle_resources"],
+    args = [
+        "$(execpath lib/Analysis/FlowSensitive/HTMLLogger.inc)",
+        "$(execpath lib/Analysis/FlowSensitive/HTMLLogger.html)",
+        "$(execpath lib/Analysis/FlowSensitive/HTMLLogger.css)",
+        "$(execpath lib/Analysis/FlowSensitive/HTMLLogger.js)",
+    ],
+    tool = ":bundle_resources_cc",
 )
 
 cc_library(
@@ -1724,7 +1784,7 @@ cc_library(
         "include/clang/Frontend/*.h",
     ]),
     copts = ["$(STACK_FRAME_UNLIMITED)"],
-    data = [":builtin_headers_gen"],
+    #data = [":builtin_headers_gen"],
     includes = ["include"],
     deps = [
         ":apinotes",
