@@ -28,8 +28,8 @@ def native_arch_defines(arch, triple):
 
 posix_defines = [
     "LLVM_ON_UNIX=1",
-    "HAVE_BACKTRACE=1",
-    "BACKTRACE_HEADER=<execinfo.h>",
+    # "HAVE_BACKTRACE=1",
+    # "BACKTRACE_HEADER=<execinfo.h>",
     r'LTDL_SHLIB_EXT=\".so\"',
     r'LLVM_PLUGIN_EXT=\".so\"',
     "LLVM_ENABLE_LLVM_EXPORT_ANNOTATIONS=1",
@@ -51,7 +51,7 @@ posix_defines = [
 linux_defines = posix_defines + [
     "_GNU_SOURCE",
     "HAVE_GETAUXVAL=1",
-    "HAVE_MALLINFO=1",
+    # "HAVE_MALLINFO=1",
     "HAVE_SBRK=1",
     "HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC=1",
 ]

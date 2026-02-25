@@ -1709,6 +1709,11 @@ genrule(
     toolchains = [":workspace_root"],
 )
 
+filegroup(
+    name = "builtin_headers_files",
+    srcs = builtin_headers,
+)
+
 cc_library(
     name = "frontend",
     srcs = glob([
