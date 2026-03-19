@@ -68,3 +68,29 @@ func.func @linearize_dynamic(%arg0: index, %arg1: index, %arg2: index, %arg3: in
   %0 = affine.linearize_index [%arg0, %arg1, %arg2] by (%arg3, %arg4) : index
   func.return %0 : index
 }
+
+// -----
+
+// CHECK-DAG: #[[$map0:.+]] = affine_map<(d0, d1) -> (d0 * 8 + d1 * 512)>
+
+// CHECK-LABEL: @linearize_index_by_strides_static
+// CHECK-SAME: (%[[A:.+]]: index, %[[B:.+]]: index)
+// CHECK: %[[RES:.+]] = affine.apply #[[$map0]](%[[A]], %[[B]])
+// CHECK: return %[[RES]]
+func.func @linearize_index_by_strides_static(%a: index, %b: index) -> index {
+  %0 = affine.linearize_index_by_strides [%a, %b] by (8, 512) : index
+  return %0 : index
+}
+
+// -----
+
+// CHECK-DAG: #[[$map0:.+]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s0 + d1 * s1)>
+
+// CHECK-LABEL: @linearize_index_by_strides_dynamic
+// CHECK-SAME: (%[[A:.+]]: index, %[[B:.+]]: index, %[[S0:.+]]: index, %[[S1:.+]]: index)
+// CHECK: %[[RES:.+]] = affine.apply #[[$map0]](%[[A]], %[[B]])[%[[S0]], %[[S1]]]
+// CHECK: return %[[RES]]
+func.func @linearize_index_by_strides_dynamic(%a: index, %b: index, %s0: index, %s1: index) -> index {
+  %0 = affine.linearize_index_by_strides [%a, %b] by (%s0, %s1) : index
+  return %0 : index
+}
